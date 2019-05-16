@@ -1,4 +1,5 @@
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using DatingApp.API.Model;
 
 namespace DatingApp.API.Data{
@@ -11,8 +12,28 @@ namespace DatingApp.API.Data{
         }
         public async Task<User> Login(string username, string password)
         { 
-           
+           var user = await _context.Users.FirstOrDefaultAsync(x => x.Username == username);
+           if(user == null){
+               return null;
+           }
+           if(!VerifyPasswordHash(password, user.PasswordHash, user.PasswordSalt))
+                return null;
+            
+            return user;
         }
+
+        private bool VerifyPasswordHash(string password, byte[] passwordHash, byte[] passwordSalt){
+            using (var hmac = new System.Security.Cryptography.HMACSHA512(passwordSalt)){
+                
+                var ComputedHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
+                for (int i = 0; i<ComputedHash.Length; i++){
+                    if (ComputedHash[i] != passwordHash[i]) return false;
+                }
+            }
+            return true;
+        }
+              
+        
 
         public async Task<User> Register(User user, string password)
         {
@@ -23,7 +44,7 @@ namespace DatingApp.API.Data{
             user.PasswordSalt = passwordSalt; 
 
             await _context.Users.AddAsync(user);
-            await _context.SaveChangesAync();
+            await _context.SaveChangesAsync();
 
             return user;
            
@@ -37,9 +58,11 @@ namespace DatingApp.API.Data{
         }
               
 
-        public Task<bool> UserExists(string username)
+        public async Task<bool> UserExists(string username)
         {
-            throw new System.NotImplementedException();
+            if (await _context.Users.AnyAsync(x => x.Username == username))
+                return true;
+            return false;
         }
     }
 }
